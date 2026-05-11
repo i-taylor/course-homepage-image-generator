@@ -316,7 +316,7 @@ function applyMask() {
   cClip.style.webkitMaskRepeat   = 'no-repeat';
   cClip.style.webkitMaskSize     = 'contain';
 }
-applyMask();
+// mask applied on first image load, not before (so placeholder text isn't clipped)
 
 // ─── Cover scale ───────────────────────────────────────────────────────────
 
@@ -373,6 +373,7 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
     sourceImg.onload = () => {
       if (imgEl) imgEl.remove();
       cPlaceholder.style.display = 'none';
+      applyMask();
 
       imgEl = document.createElement('img');
       imgEl.src = ev.target.result;
