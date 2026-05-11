@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course Image Composer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #eef0f4;
+    color: #1a1a2e;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: #1a2b5e;
+    color: white;
+    padding: 13px 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 1rem; font-weight: 600; }
+  header p  { font-size: 0.78rem; opacity: 0.55; }
+
+  .app { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ─────────────────────────────────────── */
+  .sidebar {
+    width: 256px;
+    background: white;
+    border-right: 1px solid #e2e5ec;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .s-section { padding: 18px 20px; border-bottom: 1px solid #f2f2f2; }
+
+  .s-label {
+    font-size: 0.67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #aaa;
+    margin-bottom: 11px;
+    display: block;
+  }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 0.87rem;
+    font-weight: 500;
+    text-align: center;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-blue  { background: #1a2b5e; color: white; }
+  .btn-blue:hover { background: #243870; }
+  .btn-ghost { background: transparent; color: #666; border: 1px solid #d8d8d8; margin-top: 7px; }
+  .btn-ghost:hover { background: #f5f5f5; }
+  .btn-ghost:disabled { opacity: 0.38; cursor: default; pointer-events: none; }
+  .btn-export {
+    background: #FFCB05; color: #1a2b5e;
+    font-weight: 700; font-size: 0.9rem;
+    margin-top: 10px; padding: 11px 14px;
+  }
+  .btn-export:hover { background: #f0be00; }
+
+  .hint { font-size: 0.77rem; color: #aaa; line-height: 1.55; margin-top: 9px; }
+
+  .color-row {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 9px;
+  }
+  .color-row label { font-size: 0.84rem; color: #444; }
+  .color-row input[type="color"] {
+    width: 38px; height: 28px; border: 1px solid #ccc;
+    border-radius: 5px; cursor: pointer; padding: 2px 3px; background: white;
+  }
+
+  .zoom-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  }
+  .zoom-row label { font-size: 0.84rem; color: #444; flex: 1; }
+  .zoom-row span  { font-size: 0.82rem; color: #888; width: 36px; text-align: right; }
+  .zoom-row input[type="range"] { width: 100%; margin-top: 4px; }
+
+  .select-row label { display: block; font-size: 0.82rem; color: #555; margin-bottom: 5px; }
+  .select-row select {
+    width: 100%; padding: 7px 9px; border: 1px solid #ccc;
+    border-radius: 6px; font-size: 0.84rem; background: white; color: #1a1a2e;
+  }
+
+  .s-footer {
+    margin-top: auto;
+    padding: 14px 20px;
+    font-size: 0.74rem;
+    color: #ccc;
+    line-height: 1.5;
+    border-top: 1px solid #f2f2f2;
+  }
+
+  /* ── Preview ─────────────────────────────────────── */
+  .preview-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    overflow: hidden;
+  }
+
+  .collage {
+    position: relative;
+    aspect-ratio: 1.25;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  /* Both child divs are absolutely positioned, matching canvas-style.css */
+  .collage > div {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+
+  .c-accent {
+    width: 55% !important;
+    background-repeat: no-repeat;
+    background-position: top left;
+    background-size: contain;
+  }
+
+  /* Clip container: overflow hidden + mask applied here via JS */
+  .c-clip {
+    width: 100%;
+    /* height set to match the img's 4:3 aspect within the collage */
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    cursor: grab;
+  }
+  .c-clip.grabbing { cursor: grabbing; }
+
+  /* The image inside is absolutely positioned via JS */
+  .c-clip img {
+    position: absolute;
+    touch-action: none;
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none; /* events go to the clip container */
+  }
+
+  .c-placeholder {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.07);
+    border-radius: 14px;
+    color: #aaa;
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.5;
+  }
+
+  /* ── Toast ───────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 22px; right: 26px;
+    background: #1a2b5e; color: white;
+    font-size: 0.8rem; padding: 7px 16px;
+    border-radius: 20px; opacity: 0;
+    transition: opacity 0.25s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Course Image Composer</h1>
+  <p>Drag to pan · Scroll to zoom · then export a ready-to-upload PNG</p>
+</header>
+
+<div class="app">
+  <aside class="sidebar">
+
+    <div class="s-section">
+      <span class="s-label">Image</span>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+      <button class="btn btn-blue" onclick="document.getElementById('fileInput').click()">Upload Image…</button>
+      <button class="btn btn-ghost" id="resetBtn" disabled>Reset Pan &amp; Zoom</button>
+      <p class="hint">Drag to reposition. Scroll (or pinch on touch) to zoom in and out. The SVG mask is applied automatically.</p>
+    </div>
+
+    <div class="s-section">
+      <span class="s-label">Zoom</span>
+      <div class="zoom-row">
+        <label>Zoom level</label>
+        <span id="zoomLabel">1.0×</span>
+      </div>
+      <input type="range" id="zoomSlider" min="100" max="400" value="100" step="1" disabled>
+      <p class="hint">Or use the scroll wheel over the preview.</p>
+    </div>
+
+    <div class="s-section">
+      <span class="s-label">Accent Color</span>
+      <div class="color-row">
+        <label>Shape color</label>
+        <input type="color" id="colorAccent" value="#FFCB05">
+      </div>
+      <p class="hint">Default is U-M Maize. Change to match your course brand.</p>
+    </div>
+
+    <div class="s-section">
+      <span class="s-label">Export</span>
+      <div class="select-row">
+        <label>Output size</label>
+        <select id="exportSize">
+          <option value="1200x900">1200 × 900 — 4:3 (recommended)</option>
+          <option value="1280x720">1280 × 720 — 16:9</option>
+          <option value="800x600">800 × 600 — 4:3 (smaller)</option>
+          <option value="1600x1200">1600 × 1200 — 4:3 (large)</option>
+        </select>
+      </div>
+      <button class="btn btn-export" id="exportBtn">⬇ Export PNG</button>
+      <p class="hint">Exports the image pre-cropped to 4:3. Upload this to Canvas — the CSS mask and accent shape apply automatically.</p>
+    </div>
+
+    <p class="s-footer">
+      Collage styles from<br>academic-innovation/canvas-css
+    </p>
+
+  </aside>
+
+  <div class="preview-area">
+    <div class="collage" id="collage">
+      <div class="c-accent" id="cAccent"></div>
+      <div class="c-clip"   id="cClip">
+        <div class="c-placeholder" id="cPlaceholder">
+          Upload an image to preview how it will look in the collage
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── SVGs ──────────────────────────────────────────────────────────────────
+
+function accentSvg(color) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 425"><path d="M429.8377,422.6635L49.8377,357.3588c-28.7939-4.9484-49.8377-29.9172-49.8377-59.1331v-151.1214c0-27.9738,19.3311-52.2357,46.5981-58.4841L426.5981,1.5415c37.5734-8.6101,73.4019,19.9368,73.4019,58.4841v303.5047c0,37.199-33.5008,65.4336-70.1623,59.1331Z" fill="${color}"/></svg>`;
+}
+
+const MASK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 630"><path d="M636.3,629.6l-580-35.7C24.7,592,0,565.7,0,534V205.7C0,178.2,18.7,154.2,45.4,147.5L625.4,2.2c37.9-9.5,74.6,19.2,74.6,58.2v509.3c0,34.6-29.2,62-63.7,59.9Z"/></svg>`;
+
+function svgDataUrl(svg) {
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+// ─── Elements ──────────────────────────────────────────────────────────────
+
+const cAccent    = document.getElementById('cAccent');
+const cClip      = document.getElementById('cClip');
+const cPlaceholder = document.getElementById('cPlaceholder');
+const colorInput = document.getElementById('colorAccent');
+const resetBtn   = document.getElementById('resetBtn');
+const zoomSlider = document.getElementById('zoomSlider');
+const zoomLabel  = document.getElementById('zoomLabel');
+const exportBtn  = document.getElementById('exportBtn');
+
+// ─── State ─────────────────────────────────────────────────────────────────
+
+let sourceImg = null; // original Image element (for export)
+let imgEl     = null; // preview img inside cClip
+
+// Pan/zoom state — all in rendered (screen) pixel space relative to cClip
+let panX  = 0;   // offset of img center from clip center, rendered px
+let panY  = 0;
+let scale = 1.0; // multiplier on the "cover" base scale
+
+// ─── Accent ────────────────────────────────────────────────────────────────
+
+function updateAccent() {
+  cAccent.style.backgroundImage = svgDataUrl(accentSvg(colorInput.value));
+}
+colorInput.addEventListener('input', updateAccent);
+updateAccent();
+
+// ─── Apply mask to clip container ──────────────────────────────────────────
+
+function applyMask() {
+  const url = svgDataUrl(MASK_SVG);
+  cClip.style.maskImage          = url;
+  cClip.style.maskPosition       = 'right center';
+  cClip.style.maskRepeat         = 'no-repeat';
+  cClip.style.maskSize           = 'contain';
+  cClip.style.webkitMaskImage    = url;
+  cClip.style.webkitMaskPosition = 'right center';
+  cClip.style.webkitMaskRepeat   = 'no-repeat';
+  cClip.style.webkitMaskSize     = 'contain';
+}
+applyMask();
+
+// ─── Cover scale ───────────────────────────────────────────────────────────
+
+// Returns the scale factor that makes the image just cover the clip container
+function coverScale() {
+  if (!sourceImg || !sourceImg.naturalWidth) return 1;
+  const cw = cClip.offsetWidth;
+  const ch = cClip.offsetHeight;
+  return Math.max(cw / sourceImg.naturalWidth, ch / sourceImg.naturalHeight);
+}
+
+// ─── Apply transform ───────────────────────────────────────────────────────
+
+function applyTransform() {
+  if (!imgEl || !sourceImg?.naturalWidth) return;
+
+  const cw = cClip.offsetWidth;
+  const ch = cClip.offsetHeight;
+  const s  = coverScale() * scale;
+  const iw = sourceImg.naturalWidth  * s;
+  const ih = sourceImg.naturalHeight * s;
+
+  // Centered position + pan offset
+  let x = (cw - iw) / 2 + panX;
+  let y = (ch - ih) / 2 + panY;
+
+  // Clamp so image always covers the clip (no white edges)
+  x = clamp(x, cw - iw, 0);
+  y = clamp(y, ch - ih, 0);
+
+  // Store clamped pan back so state stays consistent
+  panX = x - (cw - iw) / 2;
+  panY = y - (ch - ih) / 2;
+
+  imgEl.style.width  = iw + 'px';
+  imgEl.style.height = ih + 'px';
+  imgEl.style.left   = x  + 'px';
+  imgEl.style.top    = y  + 'px';
+
+  // Update zoom slider + label
+  zoomSlider.value = Math.round(scale * 100);
+  zoomLabel.textContent = scale.toFixed(1) + '×';
+}
+
+// ─── Upload ────────────────────────────────────────────────────────────────
+
+document.getElementById('fileInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    sourceImg = new Image();
+    sourceImg.onload = () => {
+      if (imgEl) imgEl.remove();
+      cPlaceholder.style.display = 'none';
+
+      imgEl = document.createElement('img');
+      imgEl.src = ev.target.result;
+      imgEl.alt = '';
+      cClip.appendChild(imgEl);
+
+      panX = 0; panY = 0; scale = 1.0;
+      applyTransform();
+
+      resetBtn.disabled   = false;
+      zoomSlider.disabled = false;
+    };
+    sourceImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+
+// ─── Reset ─────────────────────────────────────────────────────────────────
+
+resetBtn.addEventListener('click', () => {
+  panX = 0; panY = 0; scale = 1.0;
+  applyTransform();
+});
+
+// ─── Zoom slider ───────────────────────────────────────────────────────────
+
+zoomSlider.addEventListener('input', () => {
+  scale = parseInt(zoomSlider.value) / 100;
+  applyTransform();
+});
+
+// ─── Scroll to zoom ────────────────────────────────────────────────────────
+
+cClip.addEventListener('wheel', e => {
+  if (!sourceImg) return;
+  e.preventDefault();
+
+  const factor   = e.deltaY < 0 ? 1.08 : 0.93;
+  const newScale = clamp(scale * factor, 1.0, 4.0);
+
+  // Zoom toward the cursor position (relative to clip center)
+  const rect = cClip.getBoundingClientRect();
+  const mx   = e.clientX - rect.left - cClip.offsetWidth  / 2;
+  const my   = e.clientY - rect.top  - cClip.offsetHeight / 2;
+
+  panX = (panX + mx) * (newScale / scale) - mx;
+  panY = (panY + my) * (newScale / scale) - my;
+  scale = newScale;
+
+  applyTransform();
+}, { passive: false });
+
+// ─── Mouse drag ────────────────────────────────────────────────────────────
+
+let dragging = false;
+let lx = 0, ly = 0;
+
+cClip.addEventListener('mousedown', e => {
+  if (!imgEl) return;
+  dragging = true;
+  lx = e.clientX; ly = e.clientY;
+  cClip.classList.add('grabbing');
+  e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  panX += e.clientX - lx;
+  panY += e.clientY - ly;
+  lx = e.clientX; ly = e.clientY;
+  applyTransform();
+});
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  cClip.classList.remove('grabbing');
+});
+
+// ─── Touch drag + pinch zoom ───────────────────────────────────────────────
+
+let touches = {};
+
+cClip.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    touches[t.identifier] = { x: t.clientX, y: t.clientY };
+  }
+}, { passive: false });
+
+cClip.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!imgEl) return;
+
+  if (e.touches.length === 1) {
+    const t    = e.touches[0];
+    const prev = touches[t.identifier];
+    if (prev) {
+      panX += t.clientX - prev.x;
+      panY += t.clientY - prev.y;
+      applyTransform();
+    }
+    touches[t.identifier] = { x: t.clientX, y: t.clientY };
+
+  } else if (e.touches.length === 2) {
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const p0 = touches[t0.identifier], p1 = touches[t1.identifier];
+    if (p0 && p1) {
+      const prevDist = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+      const currDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      const factor   = currDist / prevDist;
+      scale = clamp(scale * factor, 1.0, 4.0);
+      applyTransform();
+    }
+    touches[t0.identifier] = { x: t0.clientX, y: t0.clientY };
+    touches[t1.identifier] = { x: t1.clientX, y: t1.clientY };
+  }
+}, { passive: false });
+
+cClip.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) delete touches[t.identifier];
+});
+
+// ─── Export ────────────────────────────────────────────────────────────────
+
+exportBtn.addEventListener('click', () => {
+  if (!sourceImg?.naturalWidth) { alert('Upload an image first.'); return; }
+
+  const [ew, eh] = document.getElementById('exportSize').value.split('x').map(Number);
+
+  // Reconstruct the exact crop rect in source image coordinates
+  const cw = cClip.offsetWidth;
+  const ch = cClip.offsetHeight;
+  const s  = coverScale() * scale;
+  const iw = sourceImg.naturalWidth  * s;
+  const ih = sourceImg.naturalHeight * s;
+
+  let x = (cw - iw) / 2 + panX;
+  let y = (ch - ih) / 2 + panY;
+  x = clamp(x, cw - iw, 0);
+  y = clamp(y, ch - ih, 0);
+
+  // Source rect (in original image pixels) that maps to the clip container
+  const srcX = -x / s;
+  const srcY = -y / s;
+  const srcW =  cw / s;
+  const srcH =  ch / s;
+
+  // If export ratio differs from clip ratio, adjust (shouldn't happen with current presets)
+  const clipAsp   = cw / ch;
+  const exportAsp = ew / eh;
+  let adjSrcX = srcX, adjSrcY = srcY, adjSrcW = srcW, adjSrcH = srcH;
+  if (Math.abs(clipAsp - exportAsp) > 0.01) {
+    if (exportAsp > clipAsp) {
+      adjSrcH = adjSrcW / exportAsp;
+      adjSrcY += (srcH - adjSrcH) / 2;
+    } else {
+      adjSrcW = adjSrcH * exportAsp;
+      adjSrcX += (srcW - adjSrcW) / 2;
+    }
+  }
+
+  const ec = document.createElement('canvas');
+  ec.width  = ew;
+  ec.height = eh;
+  ec.getContext('2d').drawImage(
+    sourceImg,
+    adjSrcX, adjSrcY, adjSrcW, adjSrcH,
+    0, 0, ew, eh
+  );
+
+  const a    = document.createElement('a');
+  a.download = 'course-image.png';
+  a.href     = ec.toDataURL('image/png');
+  a.click();
+
+  toast('Exported!');
+});
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+</script>
+</body>
+</html>
